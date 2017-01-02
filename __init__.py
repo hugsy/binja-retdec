@@ -47,7 +47,6 @@ class RetDecDecompiler(BackgroundTaskThread):
     DECOMPILE_RANGE_MODE       = 3
 
     def __init__(self, view, mode, *args, **kwargs):
-        BackgroundTaskThread.__init__(self, "Decompiling with RetDec...", True)
         self.view = None
         self.arch = None
         self.session = None
@@ -75,11 +74,13 @@ class RetDecDecompiler(BackgroundTaskThread):
 
         if self.mode == RetDecDecompiler.DECOMPILE_FILE_MODE:
             self.title = "Decompiled '{}'".format(self.view.file.filename)
+            progress_title = "Decompiling binary with RetDec..."
 
         if self.mode == RetDecDecompiler.DECOMPILE_FUNCTION_MODE:
             func = args[0]
             self.title = "Decompiled '{}'".format(func.name)
             self.view.set_default_session_data("function", func)
+            progress_title = "Decompiling function with RetDec..."
 
         if self.mode == RetDecDecompiler.DECOMPILE_RANGE_MODE:
             address = args[0]
@@ -87,6 +88,9 @@ class RetDecDecompiler(BackgroundTaskThread):
             self.title = "Decompiled range {:#x}-{:#x}".format(address, address+length)
             self.view.set_default_session_data("address", address)
             self.view.set_default_session_data("length", length)
+            progress_title = "Decompiling byte range with RetDec..."
+
+        BackgroundTaskThread.__init__(self, progress_title, True)
         return
 
 
@@ -156,7 +160,9 @@ class RetDecDecompiler(BackgroundTaskThread):
 
         log_info("Decompilation done, downloading output...")
         raw_code = self.download_decompiled_code(res["links"]["outputs"])
+        log_info("Integrating Binary Ninja symbols...")
         pcode = self.merge_binaryninja_symbols(raw_code, params["data"]["raw_entry_point"])
+        log_info("Decompilation done")
         show_plain_text_report(self.title, pcode)
         return True
 
@@ -240,18 +246,21 @@ class RetDecDecompiler(BackgroundTaskThread):
     def merge_binaryninja_symbols(self, code, entry_point_addr):
         """Use symbols defined in Binary Ninja to make the output more readable."""
         pcode = []
+        patt = re.compile(r'(unknown_[a-f0-9]+|data_[a-f0-9]+|sub_[a-f0-9]+|0x[a-f0-9]+)')
+
         for line in code.splitlines():
             if line.strip().startswith('//') or line.strip().startswith('#'):
                 pcode.append(line)
                 continue
 
+            log_debug("Analyzing line '{}'".format(line))
             if "entry_point" in line:
                 addr = int(entry_point_addr, 16)
                 sym = self.view.get_symbol_at(addr)
                 if sym:
                     line = line.replace("entry_point", sym.name)
 
-            for m in re.findall(r'(unknown_[a-f0-9]+|data_[a-f0-9]+|sub_[a-f0-9]+|0x[a-f0-9]+)', line):
+            for m in patt.findall(line):
                 i = m.find('_')
                 if i > 0:
                     addr = int(m.replace(m[:i+1], ''), 16)
@@ -264,10 +273,11 @@ class RetDecDecompiler(BackgroundTaskThread):
                 else:
                     # try to deref, if fail, abort
                     new_addr = struct.unpack("<I", self.view.read(addr, 4))[0]
-                    log_debug("Trying to read string at {:#x}".format(new_addr))
-                    cstring = read_cstring(self.view, new_addr)
-                    if len(cstring):
-                        line = line.replace(m, '"{:s}"'.format(cstring))
+                    if self.view.is_offset_readable(new_addr):
+                        log_debug("Trying to read string at {:#x}".format(new_addr))
+                        cstring = read_cstring(self.view, new_addr)
+                        if len(cstring):
+                            line = line.replace(m, '"{:s}"'.format(cstring))
 
             pcode.append(line)
 
