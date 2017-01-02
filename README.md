@@ -8,6 +8,9 @@ _Binary Ninja plugin to decompile binaries using RetDec API._
 This plugin aims to bind together Binary Ninja disassembly with the Retargetable Decompiler (RetDec - https://retdec.com) to decompile binary files, functions, or even byte range into pseudo-C code.
 This script also improves the result from RetDec by augmenting the pseudo C code with the symbol names found (or created) within the Binary Ninja session.
 
+![binja-retdec](http://i.imgur.com/E1RURpo.png)
+
+
 ## Minimum Version
 
 This plugin requires the following minimum version of Binary Ninja:
