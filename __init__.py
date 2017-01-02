@@ -19,8 +19,8 @@ import re
 import struct
 import string
 
-# test RetDec key, feel free to use your own
-RETDEC_API_KEY = "1dd7cb8f-ca9f-4663-811b-2095b87d7faa"
+
+DEFAULT_RETDEC_API_KEY = "1dd7cb8f-ca9f-4663-811b-2095b87d7faa"
 
 
 def read_cstring(view, addr):
@@ -47,19 +47,20 @@ class RetDecDecompiler(BackgroundTaskThread):
     DECOMPILE_RANGE_MODE       = 3
 
     def __init__(self, view, mode, *args, **kwargs):
+        BackgroundTaskThread.__init__(self, '', True)
         self.view = None
         self.arch = None
         self.session = None
 
         if view.arch.name.lower() == "x86_64":
-            log_error("RetDec does not support x86_64 decompilation yet")
+            show_message_box("RetDec", "RetDec does not support x86_64 decompilation yet...", OKButtonSet, InformationIcon)
             return
 
-        self.view = view
-
-        self.arch = self.view.arch.name.lower()
+        self.arch = view.arch.name.lower()
         if self.arch.startswith("arm"):
             self.arch = "arm"
+        elif self.arch.startswith("x86"):
+            self.arch = "x86"
         elif self.arch.startswith("powerpc"):
             self.arch = "powerpc"
         elif self.arch.startswith("mips"):
@@ -71,16 +72,17 @@ class RetDecDecompiler(BackgroundTaskThread):
         self.session = self.new_retdec_session()
         self.title = ""
         self.mode = mode
+        self.view = view
 
         if self.mode == RetDecDecompiler.DECOMPILE_FILE_MODE:
             self.title = "Decompiled '{}'".format(self.view.file.filename)
-            progress_title = "Decompiling binary with RetDec..."
+            progress_title = "Decompiling binary '{}' with RetDec...".format(self.view.file.filename)
 
         if self.mode == RetDecDecompiler.DECOMPILE_FUNCTION_MODE:
             func = args[0]
             self.title = "Decompiled '{}'".format(func.name)
             self.view.set_default_session_data("function", func)
-            progress_title = "Decompiling function with RetDec..."
+            progress_title = "Decompiling function '{}' with RetDec...".format(func.name)
 
         if self.mode == RetDecDecompiler.DECOMPILE_RANGE_MODE:
             address = args[0]
@@ -90,14 +92,23 @@ class RetDecDecompiler(BackgroundTaskThread):
             self.view.set_default_session_data("length", length)
             progress_title = "Decompiling byte range with RetDec..."
 
-        BackgroundTaskThread.__init__(self, progress_title, True)
+        self.progress = progress_title
         return
 
 
     def new_retdec_session(self):
-        """Creates a session for requests."""
+        """Creates a session for requests. If a file called `api_key` is found in the current directory, its
+        content is read and used as RetDec API key."""
+        current_dir = os.path.dirname( os.path.realpath(__file__) )
+        key_file = os.path.join(current_dir, "api_key")
+        if os.access(key_file, os.R_OK):
+            with open(key_file, 'r') as f:
+                session_key = f.read().splitlines()[0]
+        else:
+            log_warn("No API key, using default")
+            session_key = DEFAULT_RETDEC_API_KEY
         session = requests.Session()
-        session.auth = (RETDEC_API_KEY, '')
+        session.auth = (session_key, '')
         return session
 
 
@@ -152,17 +163,17 @@ class RetDecDecompiler(BackgroundTaskThread):
         res = self.submit_request("POST", decompile_url, params)
         if res == False:
             return False
-        log_info("New task created as '{}', waiting for decompilation to finish... ".format(res["id"]))
+        self.progress = "New task created as '{}', waiting for decompilation to finish... ".format(res["id"])
 
         r = self.wait_until_finished(res["links"]["status"])
         if r is None:
             return False
 
-        log_info("Decompilation done, downloading output...")
+        self.progress = "Decompilation done, downloading output..."
         raw_code = self.download_decompiled_code(res["links"]["outputs"])
-        log_info("Integrating Binary Ninja symbols...")
+        self.progress = "Integrating Binary Ninja symbols..."
         pcode = self.merge_binaryninja_symbols(raw_code, params["data"]["raw_entry_point"])
-        log_info("Decompilation done")
+        self.progress = "Decompilation done"
         show_plain_text_report(self.title, pcode)
         return True
 
