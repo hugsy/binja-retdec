@@ -14,11 +14,16 @@ import tempfile
 import time
 import os
 import sys
-import requests
 import re
 import struct
 import string
 
+import requests
+
+import pygments
+import pygments.lexers
+import pygments.formatters
+import pygments.styles.monokai
 
 def read_cstring(view, addr):
     """Read a C string from address."""
@@ -179,7 +184,7 @@ class RetDecDecompiler(BackgroundTaskThread):
         res = self.submit_request("POST", decompile_url, params)
         if res == False:
             return False
-        self.progress = "New task created as '{}', waiting for decompilation to finish... ".format(res["id"])
+        self.progress = "New RetDec task '{}', waiting for end... ".format(res["id"])
 
         r = self.wait_until_finished(res["links"]["status"])
         if r is None:
@@ -189,8 +194,9 @@ class RetDecDecompiler(BackgroundTaskThread):
         raw_code = self.download_decompiled_code(res["links"]["outputs"])
         self.progress = "Integrating Binary Ninja symbols..."
         pcode = self.merge_binaryninja_symbols(raw_code, params["data"]["raw_entry_point"])
-        self.progress = "Decompilation done"
-        show_plain_text_report(self.title, pcode)
+        self.progress = "Decompilation done, preparing report..."
+        self.render(pcode)
+        self.progress = "Done!"
         return True
 
 
@@ -312,7 +318,22 @@ class RetDecDecompiler(BackgroundTaskThread):
         return pseudo_code
 
 
+    def render(self, pcode):
+        """Generate and render the decompilation report to BN interface."""
+        lexer = pygments.lexers.CLexer()
+        style = pygments.styles.monokai.MonokaiStyle()
+        style.background_color = '#272811'
+        formatter = pygments.formatters.HtmlFormatter(full=True,
+                                                      style="monokai",
+                                                      noclasses=True)
+        colored_pcode = pygments.highlight(pcode, lexer, formatter)
+        skeleton_html = """<html><body>{}</body></html>"""
+        show_html_report(self.title, colored_pcode)
+        return
+
+
     def run(self):
+        """Run the thread in background."""
         if self.session is None:
             log_error("RetDec cannot run")
             return
@@ -330,18 +351,21 @@ class RetDecDecompiler(BackgroundTaskThread):
 
 
 def function_decompile(view, function_name):
+    """Plugin callback for function decompilation."""
     bg_retdec = RetDecDecompiler(view, RetDecDecompiler.DECOMPILE_FUNCTION_MODE, function_name)
     bg_retdec.start()
     return
 
 
 def bytes_decompile(self, addr, length):
+    """Plugin callback for byte range decompilation."""
     bg_retdec = RetDecDecompiler(view, RetDecDecompiler.DECOMPILE_RANGE_MODE, addr, length)
     bg_retdec.start()
     return
 
 
 def file_decompile(view):
+    """Plugin callback for entire file decompilation."""
     bg_retdec = RetDecDecompiler(view, RetDecDecompiler.DECOMPILE_FILE_MODE)
     bg_retdec.start()
     return
