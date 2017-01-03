@@ -20,9 +20,6 @@ import struct
 import string
 
 
-DEFAULT_RETDEC_API_KEY = "1dd7cb8f-ca9f-4663-811b-2095b87d7faa"
-
-
 def read_cstring(view, addr):
     """Read a C string from address."""
     s = ""
@@ -69,6 +66,10 @@ class RetDecDecompiler(BackgroundTaskThread):
             log_error("Unsupported architecture: {}".format(self.arch))
             return
 
+        self.api_key = self.get_or_create_key()
+        if self.api_key is None:
+            return
+
         self.session = self.new_retdec_session()
         self.title = ""
         self.mode = mode
@@ -96,19 +97,34 @@ class RetDecDecompiler(BackgroundTaskThread):
         return
 
 
-    def new_retdec_session(self):
-        """Creates a session for requests. If a file called `api_key` is found in the current directory, its
-        content is read and used as RetDec API key."""
+    def get_or_create_key(self):
+        """Retrieves a priorly entered API key for RetDec. If none existing, prompt for one and store
+        it locally."""
         current_dir = os.path.dirname( os.path.realpath(__file__) )
         key_file = os.path.join(current_dir, "api_key")
-        if os.access(key_file, os.R_OK):
-            with open(key_file, 'r') as f:
-                session_key = f.read().splitlines()[0]
+        if not os.access(key_file, os.R_OK):
+            log_warn("No API key, prompting for one...")
+            key = get_text_line_input("Please enter your RetDec API key (https://retdec.com/account/):", "RetDec API")
+            key = str(key.strip())
+            if len(key)==0:
+                log_error("No key provided")
+                return None
+
+            with open(key_file, 'w') as f:
+                f.write(key+'\n')
+
+            log_info("API key has been saved to disk")
         else:
-            log_warn("No API key, using default")
-            session_key = DEFAULT_RETDEC_API_KEY
+            with open(key_file, 'r') as f:
+                key = f.read().splitlines()[0]
+
+        return key
+
+
+    def new_retdec_session(self):
+        """Creates a session for requests. """
         session = requests.Session()
-        session.auth = (session_key, '')
+        session.auth = (self.api_key, '')
         return session
 
 
