@@ -10,6 +10,10 @@ This script also improves the result from RetDec by augmenting the pseudo C code
 
 ![binja-retdec](http://i.imgur.com/E1RURpo.png)
 
+RetDec does not support yet 64 bit binaries, but can decompile Intel x86, ARM,
+ARM+Thumb, MIPS, PIC32, PowerPC, on any of the following format: ELF, PE, COFF,
+AR (archive), Intel HEX.
+
 
 ## Minimum Version
 
@@ -24,6 +28,7 @@ This plugin requires the following minimum version of Binary Ninja:
 The following dependencies are required for this plugin:
 
  * pip - requests
+ * pip - Pygments
 
 
 ## License
