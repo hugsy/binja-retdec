@@ -15,9 +15,10 @@ ARM+Thumb, MIPS, PIC32, PowerPC, on any of the following format: ELF, PE, COFF,
 AR (archive), Intel HEX.
 
 
+
 ## Minimum Version
 
-This plugin requires the following minimum version of Binary Ninja:
+This plugin requires the following minimum version of [Binary Ninja](https://binary.ninja):
 
  * dev - 1.0.dev-576
  * release - 9999
@@ -29,6 +30,16 @@ The following dependencies are required for this plugin:
 
  * pip - requests
  * pip - Pygments
+
+
+## Install
+
+Simply run
+```
+$ git clone https://github.com/hugsy/binja-retdec ~/.binaryninja/plugins/binja-retdec
+```
+
+And start decompiling with Binary Ninja.
 
 
 ## License
