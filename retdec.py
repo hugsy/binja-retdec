@@ -285,13 +285,16 @@ class RetDecDecompiler(BackgroundTaskThread):
                 if sym:
                     line = line.replace(m, sym.name)
                 else:
-                    # try to deref, if fail, abort
-                    new_addr = struct.unpack("<I", self.view.read(addr, 4))[0]
-                    if self.view.is_offset_readable(new_addr):
-                        log_debug("Trying to read string at {:#x}".format(new_addr))
-                        cstring = read_cstring(self.view, new_addr)
-                        if len(cstring):
-                            line = line.replace(m, '"{:s}"'.format(cstring))
+                    try:
+                        # try to deref, if fail, abort
+                        new_addr = struct.unpack("<I", self.view.read(addr, 4))[0]
+                        if self.view.is_offset_readable(new_addr):
+                            log_debug("Trying to read string at {:#x}".format(new_addr))
+                            cstring = read_cstring(self.view, new_addr)
+                            if len(cstring):
+                                line = line.replace(m, '"{:s}"'.format(cstring))
+                    except:
+                        pass
 
             pcode.append(line)
 
