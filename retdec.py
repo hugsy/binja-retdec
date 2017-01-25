@@ -28,6 +28,7 @@ class RetDecDecompiler(BackgroundTaskThread):
         self.view = None
         self.arch = None
         self.session = None
+        self.session_data = {}
 
         if view.arch.name.lower() == "x86_64":
             show_message_box("RetDec", "RetDec does not support x86_64 decompilation yet...", OKButtonSet, InformationIcon)
@@ -62,15 +63,15 @@ class RetDecDecompiler(BackgroundTaskThread):
         if self.mode == RetDecDecompiler.DECOMPILE_FUNCTION_MODE:
             func = args[0]
             self.title = "Decompiled '{}'".format(func.name)
-            self.view.set_default_session_data("function", func)
+            self.session_data["function"] = func
             progress_title = "Decompiling function '{}' with RetDec...".format(func.name)
 
         if self.mode == RetDecDecompiler.DECOMPILE_RANGE_MODE:
             address = args[0]
             length = args[1]
             self.title = "Decompiled range {:#x}-{:#x}".format(address, address+length)
-            self.view.set_default_session_data("address", address)
-            self.view.set_default_session_data("length", length)
+            self.session_data["address"] = address
+            self.session_data["length"] = length
             progress_title = "Decompiling byte range with RetDec..."
 
         self.progress = progress_title
@@ -197,8 +198,8 @@ class RetDecDecompiler(BackgroundTaskThread):
 
     def decompile_range_bytes(self):
         """Invoke this function to decompile for a specific range of bytes."""
-        addr = self.view.session_data.address
-        length = self.view.session_data.length
+        addr = self.session_data["address"]
+        length = self.session_data["length"]
 
         if not self.view.is_valid_offset(addr):
             log_error("invalid")
@@ -223,7 +224,7 @@ class RetDecDecompiler(BackgroundTaskThread):
 
         with open(filename, "rb") as f:
             p["files"] = {"input": (os.path.basename(filename), f)}
-            self.view.set_default_session_data("filepath", filename)
+            self.session_data["filepath"] = filename
             self.start_decompilation(p)
 
         os.unlink(filename)
@@ -233,13 +234,13 @@ class RetDecDecompiler(BackgroundTaskThread):
 
     def decompile_function(self):
         """Invoke this function to decompile for a specific function."""
-        func = self.view.session_data.function
+        func = self.session_data["function"]
         start_addr = func.start
         end_addr   = max([x.end for x in func.basic_blocks])
         length = end_addr - start_addr
 
-        self.view.set_default_session_data("address", start_addr)
-        self.view.set_default_session_data("length", length)
+        self.session_data["address"] = start_addr
+        self.session_data["length"] = length
         return self.decompile_range_bytes()
 
 
@@ -252,7 +253,7 @@ class RetDecDecompiler(BackgroundTaskThread):
         filename = os.path.basename(filepath)
         with open(filepath, "rb") as f:
             p["files"] = {"input": (filename, f)}
-            self.view.set_default_session_data("filepath", filepath)
+            self.session_data["filepath"] = filepath
             self.start_decompilation(p)
         return
 
@@ -335,4 +336,4 @@ class RetDecDecompiler(BackgroundTaskThread):
 
     def get_file_size(self):
         """Returns the size of the file given in parameter."""
-        return os.stat(self.view.session_data.filepath).st_size
+        return os.stat(self.session_data["filepath"]).st_size
