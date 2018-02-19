@@ -248,6 +248,7 @@ class RetDecDecompiler(BackgroundTaskThread):
         """Invoke this function to decompile the entire binary."""
         p = self.setup_retdec_params()
         p["data"]["mode"] = "bin"
+        p["data"]["raw_entry_point"] = self.view.entry_point
 
         filepath = self.view.file.filename
         filename = os.path.basename(filepath)
