@@ -1,3 +1,8 @@
+# Warning
+
+Before installing, be aware that [RetDec online API is being discontinued](https://github.com/hugsy/binja-retdec/issues/11), so the plugin may not work.
+
+
 # RetDec Decompiler (v0.1)
 Author: **hugsy**
 
